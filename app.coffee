@@ -33,19 +33,48 @@ app.configure 'production', () ->
   app.use(express.errorHandler()) 
 
 places = null
-loadPlaces = ->
+#user = null
+loadPlaces = (d=->)->
   fs.readFile "places.js", (err, file) ->
     file = file.toString()
     log file
     places = eval file
+    d null, places 
 fs.watchFile "places.js", loadPlaces
-loadPlaces()  
+loadPlaces ()->
+
+#TODO: think of diff between socket model
+# and http model.
 
 pg = (p, f) ->
   app.post p, f
   app.get p, f
 
+handleWhereAmI = (req, res) ->
+  if !req.session.user
+    req.session.user = 
+      place: places.start 
+      inventory: ["keys"]
+  res.send req.session.user
 
+pg "/whereami", handleWhereAmI
+  
+handleCommand = (req, res) ->
+  command = req.params.command || ""
+  if command of req.session.user.place.commands
+    newPlace = req.session.user.place.commands[command] 
+    req.session.user.place = places[newPlace]
+    res.send req.session.user
+  else
+    err = message: "say what?" 
+    res.send err, 401
+
+pg "/commands/", handleWhereAmI
+pg "/commands/:command", handleCommand
+
+  
+  
+  
 # Routes
 
 app.get "/drew", (req, res) ->
